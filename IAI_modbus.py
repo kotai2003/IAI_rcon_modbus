@@ -106,6 +106,40 @@ class RCONController:
             return False
 
     def move_to_position_number(self, position_number):
+        """
+        指定されたポジション番号へ移動コマンドを送信するメソッド。
+        """
+        if not self.instrument:
+            print("Not connected to any instrument")
+            return
+        try:
+            move_command_register = 0x9800  # ポジション番号指定のためのレジスタアドレス
+
+            # ポジション番号指定のコマンド送信
+            self.instrument.write_register(move_command_register, position_number, functioncode=6)
+            print(f"ポジション番号{position_number}への移動コマンドを送信しました。")
+
+        except IOError:
+            print("Failed to move to the specified position number")
+
+    def is_position_reached(self, position_number):
+        """
+        現在の位置が指定されたポジション番号に到達しているかを確認するメソッド。
+        到達している場合はTrueを返し、そうでなければFalseを返す。
+        """
+        if not self.instrument:
+            print("Not connected to any instrument")
+            return False
+        try:
+            position_status_register = 0x9014  # 完了ポジション番号を確認するためのレジスタアドレス
+            status = self.instrument.read_register(position_status_register, functioncode=3)
+            # 指定したポジション番号のビットが立っているかを確認
+            return (status & (1 << (position_number - 1))) != 0
+        except IOError:
+            print("Failed to read position status register")
+            return False
+
+    def move_to_position_number_old(self, position_number):
         if not self.instrument:
             print("Not connected to any instrument")
             return
@@ -144,11 +178,24 @@ if __name__ == "__main__":
     rcon.home()
 
     print("Press 'q' to stop the loop.")
-    while True:
+
+    # 5回のループに変更
+    for i in range(5):
+
         rcon.move_to_position_number(2)
         print(f"ポジションNo.2への移動が完了しました。")
+
+        # ポジション2に到達するまで待機
+        while not rcon.is_position_reached(2):
+            time.sleep(0.1)  # 100ms待機
+        print("ポジション2に到達しました。")
         rcon.move_to_position_number(1)
         print(f"ポジションNo.1への移動が完了しました。")
+
+        # ポジション1に到達するまで待機
+        while not rcon.is_position_reached(1):
+            time.sleep(0.1)  # 100ms待機
+        print("ポジション1に到達しました。")
 
         if keyboard.is_pressed('q'):
             print("Stopping the loop.")
